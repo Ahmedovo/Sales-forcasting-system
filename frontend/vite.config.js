@@ -1,9 +1,16 @@
+// Temporary JS config. The TS config lives at vite.config.ts and will be preferred by Vite.
 import { defineConfig } from "vite";
+import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
  base: "/",
  plugins: [react()],
+ resolve: {
+  alias: {
+   "@": fileURLToPath(new URL("./src", import.meta.url)),
+  },
+ },
  preview: {
   port: 8080,
   strictPort: true,
