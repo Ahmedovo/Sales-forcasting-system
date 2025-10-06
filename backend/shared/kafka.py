@@ -24,6 +24,7 @@ def create_json_producer(config: KafkaConfig) -> KafkaProducer:
         acks="all",
         linger_ms=5,
         retries=5,
+        api_version_auto_timeout_ms=5000,
     )
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 import datetime as dt
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, DateTime
+from shared.config import load_config
 
 
 class Base(DeclarativeBase):
@@ -10,6 +11,7 @@ class Base(DeclarativeBase):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {"schema": (load_config("auth-service").db_schema or "auth")}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import ProductForm, { ProductInput } from "../components/ProductForm";
-import api, { ApiListResponse } from "../lib/api";
+import api from "../lib/api";
 
 type Product = { id: string; name: string; price: number; stock: number };
 
@@ -15,8 +15,8 @@ export default function Products(): React.ReactElement {
   async function load() {
     setLoading(true);
     try {
-      const res = await api.get<ApiListResponse<Product>>("/products");
-      setItems(res.data.items);
+      const res = await api.get<Product[]>("/products");
+      setItems(res.data);
     } finally {
       setLoading(false);
     }

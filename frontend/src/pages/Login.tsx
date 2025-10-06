@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Login(): React.ReactElement {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,7 +15,7 @@ export default function Login(): React.ReactElement {
     setError(null);
     setLoading(true);
     try {
-      await login(username, password);
+      await login(email, password);
       navigate("/");
     } catch (err) {
       setError("Invalid credentials");
@@ -31,8 +31,8 @@ export default function Login(): React.ReactElement {
         <p className="mb-6 text-sm text-gray-600">Sign in to continue</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium">Username</label>
-            <input className="input mt-1" value={username} onChange={(e) => setUsername(e.target.value)} />
+            <label className="block text-sm font-medium">Email</label>
+            <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium">Password</label>
@@ -53,7 +53,7 @@ export default function Login(): React.ReactElement {
             <button
               type="button"
               className="btn border border-gray-300"
-              onClick={() => { setUsername("admin"); setPassword("password"); }}
+              onClick={() => { setEmail("admin"); setPassword("password"); }}
             >
               Fill demo credentials
             </button>

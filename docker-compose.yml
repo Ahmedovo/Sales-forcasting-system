@@ -117,5 +117,33 @@ services:
     ports:
       - "8010:8010"
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+    environment:
+      VITE_API_URL: /api
+      DOCKER: "true"
+    depends_on:
+      - auth-service
+      - products-service
+      - sales-service
+      - forecast-service
+    expose:
+      - "5000"
+
+  web:
+    image: nginx:alpine
+    depends_on:
+      - frontend
+      - auth-service
+      - products-service
+      - sales-service
+      - forecast-service
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
 volumes:
   pgdata:
