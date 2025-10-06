@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import select
 from decimal import Decimal
 from .db import get_session_factory
-from ..models import Base, Product
+from models import Base, Product
 from shared.db import create_engine_with_schema
 from shared.config import load_config
 from shared.kafka import create_json_producer, KafkaConfig
@@ -15,7 +15,14 @@ _cfg = load_config("products-service")
 _engine = create_engine_with_schema(_cfg.db_url, _cfg.db_schema or "products")
 Base.metadata.create_all(_engine)
 SessionLocal = get_session_factory()
-producer = create_json_producer(KafkaConfig(bootstrap_servers=_cfg.kafka_bootstrap_servers, client_id="products-service"))
+
+# Lazily create Kafka producer so service can start even if Kafka isn't ready yet
+_producer = None
+def get_producer():
+    global _producer
+    if _producer is None:
+        _producer = create_json_producer(KafkaConfig(bootstrap_servers=_cfg.kafka_bootstrap_servers, client_id="products-service"))
+    return _producer
 
 
 def product_to_dict(p: Product) -> dict:
@@ -46,8 +53,8 @@ def create_product():
         session.add(prod)
         session.commit()
         payload = {"product_id": prod.id, "sku": prod.sku, "name": prod.name, "price": float(prod.price), "stock": prod.stock, "ts": __import__("time").time()}
-        producer.send("product.created", key=str(prod.id), value=payload)
-        producer.flush(1)
+        get_producer().send("product.created", key=str(prod.id), value=payload)
+        get_producer().flush(1)
         return jsonify(product_to_dict(prod)), 201
 
 
@@ -77,8 +84,8 @@ def update_product(pid: int):
             prod.price = Decimal(str(data["price"]))
         session.add(prod)
         session.commit()
-        producer.send("product.updated", key=str(prod.id), value=product_to_dict(prod))
-        producer.flush(1)
+        get_producer().send("product.updated", key=str(prod.id), value=product_to_dict(prod))
+        get_producer().flush(1)
         return jsonify(product_to_dict(prod))
 
 
@@ -91,6 +98,6 @@ def delete_product(pid: int):
             return jsonify({"error": "not found"}), 404
         session.delete(prod)
         session.commit()
-        producer.send("product.deleted", key=str(pid), value={"product_id": pid})
-        producer.flush(1)
+        get_producer().send("product.deleted", key=str(pid), value={"product_id": pid})
+        get_producer().flush(1)
         return jsonify({"status": "deleted"})

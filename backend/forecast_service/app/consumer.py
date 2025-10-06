@@ -3,7 +3,7 @@ import threading
 from shared.kafka import create_json_consumer, KafkaConfig, consume_loop
 from shared.config import load_config
 from .routes import update_series
-from ..models import ProcessedSale
+from models import ProcessedSale
 from .db import get_session_factory
 from sqlalchemy import select
 

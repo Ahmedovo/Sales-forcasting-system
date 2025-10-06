@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import select, text
 from decimal import Decimal
 from .db import get_session_factory
-from ..models import Base, Sale
+from models import Base, Sale
 from shared.db import create_engine_with_schema
 from shared.config import load_config
 from shared.kafka import create_json_producer, KafkaConfig
@@ -15,7 +15,14 @@ _cfg = load_config("sales-service")
 _engine = create_engine_with_schema(_cfg.db_url, _cfg.db_schema or "sales")
 Base.metadata.create_all(_engine)
 SessionLocal = get_session_factory()
-producer = create_json_producer(KafkaConfig(bootstrap_servers=_cfg.kafka_bootstrap_servers, client_id="sales-service"))
+
+# Lazily create Kafka producer so service can start even if Kafka isn't ready yet
+_producer = None
+def get_producer():
+    global _producer
+    if _producer is None:
+        _producer = create_json_producer(KafkaConfig(bootstrap_servers=_cfg.kafka_bootstrap_servers, client_id="sales-service"))
+    return _producer
 
 
 @sales_bp.post("")
@@ -52,7 +59,7 @@ def create_sale():
     with SessionLocal() as session:
         session.add(sale)
         session.commit()
-        producer.send("sales.created", key=str(sale.id), value={
+        get_producer().send("sales.created", key=str(sale.id), value={
             "sale_id": sale.id,
             "product_id": sale.product_id,
             "quantity": sale.quantity,
@@ -60,7 +67,7 @@ def create_sale():
             "sold_at": sale.sold_at.isoformat(),
             "user_id": sale.user_id,
         })
-        producer.flush(1)
+        get_producer().flush(1)
         return jsonify({
             "id": sale.id,
             "product_id": sale.product_id,

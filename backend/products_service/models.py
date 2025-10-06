@@ -2,6 +2,7 @@ from __future__ import annotations
 import datetime as dt
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, DateTime, Numeric
+from shared.config import load_config
 
 
 class Base(DeclarativeBase):
@@ -10,6 +11,7 @@ class Base(DeclarativeBase):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = {"schema": (load_config("products-service").db_schema or "products")}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
