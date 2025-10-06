@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from .db import get_session_factory
 from .security import get_jwt_manager, hash_password, verify_password
 from .config import load_service_config
-from ..models import Base, User
+from models import Base, User
 from shared.db import create_engine_with_schema
 from shared.config import load_config
 

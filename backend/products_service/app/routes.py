@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import select
 from decimal import Decimal
 from .db import get_session_factory
-from ..models import Base, Product
+from models import Base, Product
 from shared.db import create_engine_with_schema
 from shared.config import load_config
 from shared.kafka import create_json_producer, KafkaConfig
