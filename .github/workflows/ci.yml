@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install auth-service deps
+        run: |
+          pip install -r backend/auth_service/requirements.txt
+          pip install pytest
+      - name: Run auth-service tests
+        working-directory: backend/auth_service
+        run: pytest -q
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build containers
+        run: |
+          docker build -f backend/auth_service/Dockerfile -t auth-service:ci .
+          docker build -f backend/products_service/Dockerfile -t products-service:ci .
+          docker build -f backend/sales_service/Dockerfile -t sales-service:ci .
+          docker build -f backend/forecast_service/Dockerfile -t forecast-service:ci .
+          docker build -f backend/etl_service/Dockerfile -t etl-service:ci .
