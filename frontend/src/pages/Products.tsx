@@ -15,8 +15,8 @@ export default function Products(): React.ReactElement {
   async function load() {
     setLoading(true);
     try {
-      const res = await api.get<Product[]>("/products");
-      setItems(res.data);
+      const res = await api.get("/products");
+      setItems(res.data.items || res.data);
     } finally {
       setLoading(false);
     }

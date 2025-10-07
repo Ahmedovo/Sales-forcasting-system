@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
 import Forecast from "./pages/Forecast";
+import Admin from "./pages/Admin";
 
 function PrivateRoute({ children }: { children: React.ReactElement }) {
   const { isAuthenticated } = useAuth();
@@ -32,6 +33,10 @@ export default function App(): React.ReactElement {
         <Route
           path="/forecast"
           element={<PrivateRoute><Forecast /></PrivateRoute>}
+        />
+        <Route
+          path="/admin"
+          element={<PrivateRoute><Admin /></PrivateRoute>}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

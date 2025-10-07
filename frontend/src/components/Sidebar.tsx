@@ -22,6 +22,9 @@ export default function Sidebar(): React.ReactElement {
         <NavLink to="/forecast" className={linkClasses}>
           <span className="h-2 w-2 rounded-full bg-brand-600" /> Forecast
         </NavLink>
+        <NavLink to="/admin" className={linkClasses}>
+          <span className="h-2 w-2 rounded-full bg-brand-600" /> Admin
+        </NavLink>
       </nav>
     </aside>
   );
