@@ -12,138 +12,33 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.1
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.1
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-
-  auth-service:
+  backend:
     build:
       context: .
-      dockerfile: backend/auth_service/Dockerfile
+      dockerfile: backend/Dockerfile
     environment:
       DEBUG: "true"
-      PORT: 8001
+      PORT: 8000
       DB_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/postgres
-      DB_SCHEMA: auth
       JWT_ALGORITHM: HS256
       JWT_SECRET: supersecret_dev_change_me
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       - postgres
-      - kafka
     ports:
-      - "8001:8001"
-
-  products-service:
-    build:
-      context: .
-      dockerfile: backend/products_service/Dockerfile
-    environment:
-      DEBUG: "true"
-      PORT: 8002
-      DB_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/postgres
-      DB_SCHEMA: products
-      JWT_ALGORITHM: HS256
-      JWT_SECRET: supersecret_dev_change_me
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      - postgres
-      - kafka
-    ports:
-      - "8002:8002"
-
-  sales-service:
-    build:
-      context: .
-      dockerfile: backend/sales_service/Dockerfile
-    environment:
-      DEBUG: "true"
-      PORT: 8003
-      DB_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/postgres
-      DB_SCHEMA: sales
-      JWT_ALGORITHM: HS256
-      JWT_SECRET: supersecret_dev_change_me
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      - postgres
-      - kafka
-    ports:
-      - "8003:8003"
-
-  forecast-service:
-    build:
-      context: .
-      dockerfile: backend/forecast_service/Dockerfile
-    environment:
-      DEBUG: "true"
-      PORT: 8004
-      DB_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/postgres
-      DB_SCHEMA: forecast
-      JWT_ALGORITHM: HS256
-      JWT_SECRET: supersecret_dev_change_me
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      - postgres
-      - kafka
-    ports:
-      - "8004:8004"
-
-  etl-service:
-    build:
-      context: .
-      dockerfile: backend/etl_service/Dockerfile
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      - kafka
-    ports:
-      - "8010:8010"
+      - "8000:8000"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: dockerfile
     environment:
-      VITE_API_URL: /api
+      VITE_API_URL: http://localhost:8000/api
       DOCKER: "true"
     depends_on:
-      - auth-service
-      - products-service
-      - sales-service
-      - forecast-service
-    expose:
-      - "5000"
-
-  web:
-    image: nginx:alpine
-    depends_on:
-      - frontend
-      - auth-service
-      - products-service
-      - sales-service
-      - forecast-service
+      - backend
     ports:
-      - "8080:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - "8080:5000"
+
 
 volumes:
   pgdata:
