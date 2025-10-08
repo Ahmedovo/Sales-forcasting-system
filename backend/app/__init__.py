@@ -39,6 +39,22 @@ def create_app() -> Flask:
 
     with app.app_context():
         db.create_all()
+        # Lightweight startup migration for 'sku' column and unique index (Postgres-safe, idempotent)
+        try:
+            from sqlalchemy import text
+            engine = db.get_engine()
+            with engine.begin() as conn:
+                # Ensure column exists (Postgres supports IF NOT EXISTS)
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS sku varchar(100)"))
+                # Backfill values to satisfy NOT NULL constraint when newly added
+                conn.execute(text("UPDATE products SET sku = CONCAT('SKU-', id) WHERE sku IS NULL OR sku = ''"))
+                # Enforce NOT NULL (safe if already set)
+                conn.execute(text("ALTER TABLE products ALTER COLUMN sku SET NOT NULL"))
+                # Ensure unique index exists
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_products_sku ON products (sku)"))
+        except Exception:
+            # Ignore on SQLite or non-Postgres engines
+            pass
 
     # Start weekly scheduler once app is created (Flask 3 removed before_first_request)
     start_scheduler()

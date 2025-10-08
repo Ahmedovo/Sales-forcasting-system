@@ -48,6 +48,7 @@ export default function ProductForm({
         />
         {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
       </div>
+      
       <div>
         <label className="block text-sm font-medium">SKU</label>
         <input

@@ -20,7 +20,7 @@ export default function Sales(): React.ReactElement {
         api.get<ApiListResponse<{ id: string; name: string }>>("/products"),
       ]);
       setItems(salesRes.data.items || (salesRes.data as any));
-      setProducts(prodRes.data.items);
+      setProducts((prodRes.data.items || []).map(p => ({ id: (p as any).id, name: (p as any).name })));
     } finally {
       setLoading(false);
     }

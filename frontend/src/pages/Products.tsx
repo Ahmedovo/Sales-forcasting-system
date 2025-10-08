@@ -4,7 +4,7 @@ import Sidebar from "../components/Sidebar";
 import ProductForm, { ProductInput } from "../components/ProductForm";
 import api from "../lib/api";
 
-type Product = { id: string; name: string; price: number; stock: number };
+type Product = { id: string; name: string; sku: string; price: number; stock: number };
 
 export default function Products(): React.ReactElement {
   const [items, setItems] = useState<Product[]>([]);
@@ -56,6 +56,7 @@ export default function Products(): React.ReactElement {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">SKU</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-600">Price</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-600">Stock</th>
                   <th className="px-4 py-2" />
@@ -65,6 +66,7 @@ export default function Products(): React.ReactElement {
                 {items.map((p) => (
                   <tr key={p.id}>
                     <td className="px-4 py-2">{p.name}</td>
+                    <td className="px-4 py-2">{p.sku}</td>
                     <td className="px-4 py-2">${p.price.toFixed(2)}</td>
                     <td className="px-4 py-2">{p.stock}</td>
                     <td className="px-4 py-2 text-right">
@@ -77,7 +79,7 @@ export default function Products(): React.ReactElement {
                 ))}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td className="px-4 py-8 text-center text-gray-500" colSpan={4}>No products</td>
+                    <td className="px-4 py-8 text-center text-gray-500" colSpan={5}>No products</td>
                   </tr>
                 )}
               </tbody>
@@ -92,7 +94,7 @@ export default function Products(): React.ReactElement {
                   <button onClick={() => { setShowModal(false); setEditing(null); }} className="text-gray-500">✕</button>
                 </div>
                 <ProductForm
-                  initial={editing ? { name: editing.name, price: editing.price, stock: editing.stock } : undefined}
+                  initial={editing ? { name: editing.name, sku: editing.sku, price: editing.price, stock: editing.stock } : undefined}
                   onSubmit={(data) => editing ? update(editing.id, data) : create(data)}
                   onCancel={() => { setShowModal(false); setEditing(null); }}
                 />

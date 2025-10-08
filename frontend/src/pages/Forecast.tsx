@@ -1,14 +1,35 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import ChartCard from "../components/ChartCard";
+import api from "../lib/api";
 
 export default function Forecast(): React.ReactElement {
-  const forecast = useMemo(() => Array.from({ length: 7 }).map((_, i) => ({ label: `D+${i + 1}`, value: Math.round(60 + Math.random() * 40) })), []);
-  const alerts = useMemo(() => [
-    { product: "Eggs", daysLeft: 3 },
-    { product: "Rice", daysLeft: 5 },
-  ], []);
+  const [productId, setProductId] = useState<string>("");
+  const [forecast, setForecast] = useState<{ label: string; value: number }[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<{ items: { id: string; name: string }[] }>("/products");
+        const list = res.data.items ?? [];
+        setProducts(list);
+        if (list.length) setProductId(list[0].id);
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!productId) return;
+    (async () => {
+      try {
+        const res = await api.get<{ forecast: number[] }>("/forecast", { params: { product_id: productId, horizon_days: 7 } });
+        const arr = (res.data.forecast ?? []).map((v, i) => ({ label: `D+${i + 1}`, value: v as number }));
+        setForecast(arr);
+      } catch {}
+    })();
+  }, [productId]);
 
   return (
     <div className="min-h-screen">
@@ -16,14 +37,14 @@ export default function Forecast(): React.ReactElement {
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 p-4 md:grid-cols-[16rem_1fr]">
         <Sidebar />
         <main className="space-y-6">
-          <ChartCard title="7-day Sales Forecast" data={forecast} />
           <div className="card p-4">
-            <h3 className="mb-2 text-sm font-semibold">Stock Sufficiency Alerts</h3>
-            <ul className="list-disc space-y-1 pl-6 text-sm text-amber-800">
-              {alerts.map((a) => (
-                <li key={a.product}>{a.product} may run out in {a.daysLeft} days</li>
-              ))}
-            </ul>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">7-day Sales Forecast</h3>
+              <select className="input" value={productId} onChange={(e) => setProductId(e.target.value)}>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <ChartCard title="" data={forecast} />
           </div>
         </main>
       </div>

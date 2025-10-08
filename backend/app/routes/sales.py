@@ -22,6 +22,33 @@ def list_sales():
     return jsonify({"items": items, "total": len(items)})
 
 
+@sales_bp.get('/series')
+@jwt_required()
+def sales_series():
+    import datetime as dt
+    try:
+        days = int(request.args.get('days', '14'))
+    except Exception:
+        days = 14
+    since = dt.datetime.utcnow().date() - dt.timedelta(days=days - 1)
+    day = db.func.date(Sale.sale_date).label('d')
+    rows = (
+        db.session.query(day, db.func.sum(Sale.quantity).label('s'))
+        .filter(Sale.sale_date >= dt.datetime.combine(since, dt.time()))
+        .group_by(day)
+        .order_by(day.asc())
+        .all()
+    )
+    # Fill missing days with 0
+    # r[0] is a date-like value already because of db.func.date
+    series_map = { r[0]: int(r[1]) for r in rows }
+    data = []
+    for i in range(days):
+        d = since + dt.timedelta(days=i)
+        data.append({ 'label': d.strftime('%m-%d'), 'value': series_map.get(d, 0) })
+    return jsonify({ 'items': data, 'days': days })
+
+
 @sales_bp.post('')
 @jwt_required()
 def create_sale():
