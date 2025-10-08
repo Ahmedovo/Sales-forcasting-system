@@ -29,6 +29,8 @@ def train_now() -> None:
 def _train_and_save(current_week: int, current_year: int) -> None:
     try:
         print("Starting model training...")
+        start_time = dt.datetime.now()
+        max_training_time = dt.timedelta(minutes=2)  # Limit training to 2 minutes
         
         # Create models directory if it doesn't exist
         models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models')
@@ -41,6 +43,7 @@ def _train_and_save(current_week: int, current_year: int) -> None:
         with open(lock_file, 'w') as f:
             f.write(f"Training started at {dt.datetime.now()}")
         
+        # Get all products at once
         products = Product.query.all()
         
         if not products:
@@ -50,7 +53,16 @@ def _train_and_save(current_week: int, current_year: int) -> None:
             
         print(f"Found {len(products)} products to process")
         
+        # Optimize model parameters for faster training
+        n_estimators = 50  # Reduced from 100 for faster training
+        
         for p in products:
+            # Check if we've exceeded the time limit
+            if dt.datetime.now() - start_time > max_training_time:
+                print(f"Training time limit reached after processing {p.id} products")
+                break
+                
+            # Get ALL sales data for this product
             sales = Sale.query.filter_by(product_id=p.id).all()
             if len(sales) < 4:
                 print(f"Skipping product {p.id} - not enough sales data (only {len(sales)} records)")
@@ -66,7 +78,7 @@ def _train_and_save(current_week: int, current_year: int) -> None:
                     sale.week_number = iso[1]
                     sale.year = sale.sale_date.year
             
-            # Create a DataFrame with daily sales data
+            # Create a DataFrame with daily sales data - use all available data
             sales_by_date = {}
             for sale in sales:
                 date_str = sale.sale_date.strftime('%Y-%m-%d')
@@ -97,7 +109,8 @@ def _train_and_save(current_week: int, current_year: int) -> None:
             y_daily = daily_df['qty'].values
             
             print(f"Training daily model with X shape: {X_daily.shape}, y shape: {y_daily.shape}")
-            daily_model = RandomForestRegressor(n_estimators=100, random_state=42)
+            # Use fewer estimators for faster training
+            daily_model = RandomForestRegressor(n_estimators=n_estimators, random_state=42, n_jobs=-1)  # Use all CPU cores
             daily_model.fit(X_daily, y_daily)
             
             # Save the trained model to a file
@@ -112,15 +125,20 @@ def _train_and_save(current_week: int, current_year: int) -> None:
             lower_bounds = []
             upper_bounds = []
             
-            for i in range(1, 8):  # Next 7 days
-                next_date = today + dt.timedelta(days=i)
-                next_day_features = np.array([[
-                    next_date.weekday(),  # day_of_week
-                    next_date.month,      # month
-                    next_date.day         # day
-                ]])
-                
-                pred = daily_model.predict(next_day_features)[0]
+            # Batch predict for all 7 days at once for efficiency
+            next_day_features = np.array([
+                [
+                    (today + dt.timedelta(days=i)).weekday(),
+                    (today + dt.timedelta(days=i)).month,
+                    (today + dt.timedelta(days=i)).day
+                ] 
+                for i in range(1, 8)
+            ])
+            
+            batch_preds = daily_model.predict(next_day_features)
+            
+            for i, pred in enumerate(batch_preds):
+                next_date = today + dt.timedelta(days=i+1)
                 pred = max(0.0, float(pred))
                 
                 next_days.append(next_date.strftime('%Y-%m-%d'))
@@ -128,38 +146,44 @@ def _train_and_save(current_week: int, current_year: int) -> None:
                 lower_bounds.append(max(0, pred * 0.8))  # 20% lower bound
                 upper_bounds.append(pred * 1.2)          # 20% upper bound
             
-            print(f"Daily predictions for next 7 days: {daily_preds}")
-            
-            # Save daily predictions to database
+            # Batch update forecasts in database
+            forecast_data = []
             for date_str, pred, lower, upper in zip(next_days, daily_preds, lower_bounds, upper_bounds):
                 forecast_date = dt.datetime.strptime(date_str, '%Y-%m-%d').date()
-                
-                # Check if forecast already exists for this date
+                forecast_data.append({
+                    'product_id': p.id,
+                    'forecast_date': forecast_date,
+                    'predicted_quantity': pred,
+                    'lower_bound': lower,
+                    'upper_bound': upper,
+                    'week_number': forecast_date.isocalendar()[1],
+                    'year': forecast_date.year
+                })
+            
+            # Bulk update/insert forecasts
+            for data in forecast_data:
                 f = Forecast.query.filter_by(
-                    product_id=p.id, 
-                    forecast_date=forecast_date
+                    product_id=data['product_id'], 
+                    forecast_date=data['forecast_date']
                 ).first()
                 
                 if f:
-                    f.predicted_quantity = pred
-                    f.lower_bound = lower
-                    f.upper_bound = upper
+                    f.predicted_quantity = data['predicted_quantity']
+                    f.lower_bound = data['lower_bound']
+                    f.upper_bound = data['upper_bound']
                 else:
                     new_forecast = Forecast(
-                        product_id=p.id,
-                        predicted_quantity=pred,
-                        lower_bound=lower,
-                        upper_bound=upper,
-                        forecast_date=forecast_date,
-                        # Keep week_number and year for compatibility
-                        week_number=forecast_date.isocalendar()[1],
-                        year=forecast_date.year
+                        product_id=data['product_id'],
+                        predicted_quantity=data['predicted_quantity'],
+                        lower_bound=data['lower_bound'],
+                        upper_bound=data['upper_bound'],
+                        forecast_date=data['forecast_date'],
+                        week_number=data['week_number'],
+                        year=data['year']
                     )
                     db.session.add(new_forecast)
             
-            print(f"Saved daily forecasts for product {p.id}")
-            
-            # Also save weekly forecasts for backward compatibility
+            # Also save weekly forecasts for backward compatibility (optimized)
             weekly_df = pd.DataFrame([{'week': s.week_number, 'year': s.year, 'qty': s.quantity} for s in sales])
             weekly_df = weekly_df.sort_values(['year', 'week'])
             
@@ -167,7 +191,7 @@ def _train_and_save(current_week: int, current_year: int) -> None:
                 X_weekly = weekly_df[['week', 'year']].values
                 y_weekly = weekly_df['qty'].values
                 
-                weekly_model = RandomForestRegressor(n_estimators=100, random_state=42)
+                weekly_model = RandomForestRegressor(n_estimators=n_estimators, random_state=42, n_jobs=-1)
                 weekly_model.fit(X_weekly, y_weekly)
                 
                 next_weeks = []

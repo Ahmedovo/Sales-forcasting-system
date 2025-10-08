@@ -43,6 +43,58 @@ def list_sales():
 @jwt_required()
 def sales_series():
     import datetime as dt
+    import calendar
+    
+    # Check if month and year parameters are provided
+    month = request.args.get('month')
+    year = request.args.get('year')
+    
+    if month and year:
+        try:
+            month = int(month)
+            year = int(year)
+            
+            # Validate month (1-12)
+            if month < 1 or month > 12:
+                return jsonify({"error": "Month must be between 1 and 12"}), 400
+                
+            # Get the number of days in the month
+            days_in_month = calendar.monthrange(year, month)[1]
+            
+            # Create start and end date for the month
+            start_date = dt.date(year, month, 1)
+            end_date = dt.date(year, month, days_in_month)
+            
+            # Query sales for the specific month
+            day = db.func.date(Sale.sale_date).label('d')
+            rows = (
+                db.session.query(day, db.func.sum(Sale.quantity).label('s'))
+                .filter(Sale.sale_date >= dt.datetime.combine(start_date, dt.time()))
+                .filter(Sale.sale_date <= dt.datetime.combine(end_date, dt.time(23, 59, 59)))
+                .group_by(day)
+                .order_by(day.asc())
+                .all()
+            )
+            
+            # Create a map of date to sales quantity
+            series_map = {r[0]: int(r[1]) for r in rows}
+            
+            # Generate data for all days in the month
+            data = []
+            for day in range(1, days_in_month + 1):
+                current_date = dt.date(year, month, day)
+                data.append({
+                    'label': current_date.isoformat(),
+                    'value': series_map.get(current_date, 0)
+                })
+                
+            return jsonify({'items': data, 'days': days_in_month})
+            
+        except Exception as e:
+            print(f"Error processing month/year parameters: {str(e)}")
+            return jsonify({"error": "Invalid month or year parameters"}), 400
+    
+    # Default behavior (backward compatibility)
     try:
         days = int(request.args.get('days', '14'))
     except Exception:

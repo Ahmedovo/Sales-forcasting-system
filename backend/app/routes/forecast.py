@@ -40,13 +40,24 @@ def get_product_forecast():
     
     # Format forecast data
     forecast_data = []
-    for forecast in forecasts:
-        forecast_data.append({
-            "date": forecast.forecast_date.strftime('%Y-%m-%d'),
-            "prediction": forecast.predicted_quantity,
-            "lower_bound": forecast.lower_bound,
-            "upper_bound": forecast.upper_bound
-        })
+    if forecasts:
+        for forecast in forecasts:
+            forecast_data.append({
+                "date": forecast.forecast_date.strftime('%Y-%m-%d'),
+                "prediction": forecast.predicted_quantity,
+                "lower_bound": forecast.lower_bound,
+                "upper_bound": forecast.upper_bound
+            })
+    else:
+        # If no forecasts are available, generate default empty forecasts for the next 7 days
+        for i in range(1, horizon_days + 1):
+            next_date = today + dt.timedelta(days=i)
+            forecast_data.append({
+                "date": next_date.strftime('%Y-%m-%d'),
+                "prediction": 0,
+                "lower_bound": 0,
+                "upper_bound": 0
+            })
     
     return jsonify({
         "product_id": int(product_id),
