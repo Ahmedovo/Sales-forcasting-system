@@ -359,9 +359,12 @@ def weekly_training_scheduler():
         time.sleep(sleep_seconds)
 
 # Start the scheduler in a separate thread when the app starts
-@app.before_first_request
+# Flask 2.3+ removed before_first_request
 def start_scheduler():
     threading.Thread(target=weekly_training_scheduler, daemon=True).start()
+
+# Call start_scheduler directly after app initialization
+start_scheduler()
 
 # Create database tables
 with app.app_context():
