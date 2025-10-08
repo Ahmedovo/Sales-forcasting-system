@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
 import Forecast from "./pages/Forecast";
+import Comparison from "./pages/Comparison";
 import Admin from "./pages/Admin";
 
 function PrivateRoute({ children }: { children: React.ReactElement }) {
@@ -33,6 +34,10 @@ export default function App(): React.ReactElement {
         <Route
           path="/forecast"
           element={<PrivateRoute><Forecast /></PrivateRoute>}
+        />
+        <Route
+          path="/comparison"
+          element={<PrivateRoute><Comparison /></PrivateRoute>}
         />
         <Route
           path="/admin"

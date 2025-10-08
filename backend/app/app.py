@@ -30,8 +30,89 @@ app.config['DEBUG'] = os.getenv('DEBUG', 'false').lower() == 'true'
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
+# Define model training function
+def train_models():
+    with app.app_context():
+        print("Starting model training...")
+        logger.info("Starting model training...")
+        
+        # Get all products
+        products = Product.query.all()
+        
+        for product in products:
+            # Get sales data for this product
+            sales = Sale.query.filter_by(product_id=product.id).all()
+            
+            if len(sales) < 5:  # Need minimum data points
+                continue
+                
+            # Prepare data for training
+            dates = [sale.sale_date for sale in sales]
+            quantities = [sale.quantity for sale in sales]
+            
+            # Convert to DataFrame for easier processing
+            df = pd.DataFrame({
+                'date': dates,
+                'quantity': quantities
+            })
+            
+            # Sort by date
+            df = df.sort_values('date')
+            
+            # Simple linear regression model
+            X = np.array(range(len(df))).reshape(-1, 1)
+            y = df['quantity'].values
+            
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model.fit(X, y)
+            
+            # Predict next 4 weeks
+            future_X = np.array(range(len(df), len(df) + 4)).reshape(-1, 1)
+            predictions = model.predict(future_X)
+            
+            # Save predictions
+            current_date = datetime.now().date()
+            
+            # Record model training
+            training = ModelTraining(
+                product_id=product.id,
+                training_date=current_date,
+                accuracy=model.score(X, y)
+            )
+            db.session.add(training)
+            
+            # Save forecasts
+            for i, pred in enumerate(predictions):
+                forecast_date = current_date + timedelta(days=7 * (i + 1))
+                
+                # Check if forecast already exists
+                existing = Forecast.query.filter_by(
+                    product_id=product.id,
+                    forecast_date=forecast_date
+                ).first()
+                
+                if existing:
+                    existing.quantity = max(0, int(pred))
+                else:
+                    forecast = Forecast(
+                        product_id=product.id,
+                        forecast_date=forecast_date,
+                        quantity=max(0, int(pred))
+                    )
+                    db.session.add(forecast)
+        
+        db.session.commit()
+        logger.info("Model training completed")
+        return True
+
 # Import models after db initialization to avoid circular imports
 from .models import User, Product, Sale, Forecast, ModelTraining
+import pandas as pd
+import io
+import numpy as np
+from datetime import datetime, timedelta
+from sklearn.ensemble import RandomForestRegressor
+from werkzeug.utils import secure_filename
 
 # Authentication routes
 @app.route('/api/auth/login', methods=['POST'])
@@ -153,6 +234,118 @@ def delete_product(product_id):
     db.session.commit()
     
     return jsonify({"message": "Product deleted successfully"}), 200
+
+# CSV Upload and Processing
+@app.route('/api/upload/csv', methods=['POST'])
+@jwt_required()
+def upload_csv():
+    print("CSV upload endpoint called")
+    if 'file' not in request.files:
+        print("Error: No file part in request")
+        return jsonify({"error": "No file part"}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        print("Error: No file selected")
+        return jsonify({"error": "No file selected"}), 400
+        
+    if file and '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() == 'csv':
+        # Read CSV file
+        print(f"Processing CSV file: {file.filename}")
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_data = pd.read_csv(stream)
+        print(f"CSV data loaded, columns: {list(csv_data.columns)}")
+        
+        # Check if CSV has required columns
+        required_columns = ['name', 'sku', 'product price', 'stock', 'quantity sale', 'date of sale']
+        missing_columns = [col for col in required_columns if col not in csv_data.columns]
+        
+        if missing_columns:
+            print(f"Error: Missing columns: {missing_columns}")
+            return jsonify({"error": f"Missing columns: {', '.join(missing_columns)}"}), 400
+            
+        # Process the data
+        products_created = 0
+        sales_created = 0
+        
+        # Group by product info
+        product_groups = csv_data.groupby(['name', 'sku', 'product price', 'stock'])
+        
+        for (name, sku, price, stock), group in product_groups:
+            # Check if product exists by SKU (prevents redundancy)
+            product = Product.query.filter_by(sku=sku).first()
+            
+            if not product:
+                # Create new product
+                product = Product(
+                    name=name,
+                    sku=sku,
+                    price=float(price),
+                    stock=int(stock),
+                    description=''
+                )
+                db.session.add(product)
+                db.session.flush()  # Get the product ID without committing
+                products_created += 1
+            else:
+                # Update existing product with latest stock information
+                product.stock = int(stock)
+            
+            # Process sales for this product
+            for _, row in group.iterrows():
+                try:
+                    sale_date = pd.to_datetime(row['date of sale']).date()
+                    
+                    # Validate quantity is positive
+                    quantity = int(row['quantity sale'])
+                    if quantity <= 0:
+                        app.logger.warning(f"Skipping invalid quantity: {quantity} for product {sku}")
+                        continue
+                    
+                    # Check for duplicate sales (same product, date and quantity)
+                    existing_sale = Sale.query.filter_by(
+                        product_id=product.id,
+                        sale_date=sale_date,
+                        quantity=quantity
+                    ).first()
+                    
+                    if existing_sale:
+                        app.logger.info(f"Skipping duplicate sale for product {sku} on {sale_date}")
+                        continue
+                    
+                    # Create sale record
+                    sale = Sale(
+                        product_id=product.id,
+                        quantity=quantity,
+                        price=float(price),
+                        sale_date=sale_date,
+                        user_id=get_jwt_identity()
+                    )
+                db.session.add(sale)
+                sales_created += 1
+        
+        # Commit all changes
+        db.session.commit()
+        
+        # Trigger model training
+        print(f"CSV processing complete. Created {products_created} products and {sales_created} sales. Triggering model training...")
+        train_models()
+        
+        return jsonify({
+            "message": "CSV processed successfully",
+            "products_created": products_created,
+            "sales_created": sales_created
+        }), 200
+    
+    return jsonify({"error": "File must be a CSV"}), 400
+
+# Model training endpoint
+@app.route('/api/train', methods=['POST'])
+@jwt_required()
+def trigger_training():
+    print("Manual training triggered")
+    train_models()
+    return jsonify({"message": "Training triggered successfully"}), 200
 
 # Sales routes
 @app.route('/api/sales', methods=['GET'])

@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import SalesForm, { ProductOption, SaleInput } from "../components/SalesForm";
 import api, { ApiListResponse } from "../lib/api";
+import { Trash } from "lucide-react";
 
 type Sale = { id: string; productName: string; quantity: number; date: string };
 
@@ -33,6 +34,13 @@ export default function Sales(): React.ReactElement {
     setShowModal(false);
     await load();
   }
+  
+  async function deleteSale(id: string) {
+    if (confirm("Are you sure you want to delete this sale?")) {
+      await api.delete(`/sales/${id}`);
+      await load();
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -51,6 +59,7 @@ export default function Sales(): React.ReactElement {
                   <th className="px-4 py-2 text-left font-medium text-gray-600">Product</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-600">Quantity</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-600">Date</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -59,11 +68,20 @@ export default function Sales(): React.ReactElement {
                     <td className="px-4 py-2">{s.productName}</td>
                     <td className="px-4 py-2">{s.quantity}</td>
                     <td className="px-4 py-2">{new Date(s.date).toLocaleDateString()}</td>
+                    <td className="px-4 py-2">
+                      <button 
+                        onClick={() => deleteSale(s.id)} 
+                        className="text-red-600 hover:text-red-800"
+                        title="Delete sale"
+                      >
+                        <Trash size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td className="px-4 py-8 text-center text-gray-500" colSpan={3}>No sales</td>
+                    <td className="px-4 py-8 text-center text-gray-500" colSpan={4}>No sales</td>
                   </tr>
                 )}
               </tbody>

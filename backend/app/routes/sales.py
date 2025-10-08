@@ -8,6 +8,23 @@ from ..models import Product, Sale
 sales_bp = Blueprint('sales', __name__)
 
 
+@sales_bp.delete('/<int:sale_id>')
+@jwt_required()
+def delete_sale(sale_id):
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({"error": "Sale not found"}), 404
+    
+    # Return stock to product
+    product = Product.query.get(sale.product_id)
+    if product:
+        product.stock += sale.quantity
+    
+    db.session.delete(sale)
+    db.session.commit()
+    return jsonify({"message": "Sale deleted successfully"}), 200
+
+
 @sales_bp.get('')
 @jwt_required()
 def list_sales():

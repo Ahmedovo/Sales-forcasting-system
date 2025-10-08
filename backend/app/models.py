@@ -44,6 +44,9 @@ class Forecast(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     predicted_quantity = db.Column(db.Float, nullable=False)
+    lower_bound = db.Column(db.Float, nullable=True)
+    upper_bound = db.Column(db.Float, nullable=True)
+    forecast_date = db.Column(db.Date, nullable=True)
     week_number = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
@@ -59,5 +62,3 @@ class ModelTraining(db.Model):
     last_trained_year = db.Column(db.Integer, nullable=False)
     accuracy = db.Column(db.Float)
     trained_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
-
-
