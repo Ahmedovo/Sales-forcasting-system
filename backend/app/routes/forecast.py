@@ -2,37 +2,125 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 import numpy as np
 import pandas as pd
-from ..models import Sale
+import datetime as dt
+import os
+import joblib
+from ..extensions import db
+from ..models import Sale, ModelTraining, Forecast, Product
 
 
 forecast_bp = Blueprint('forecast', __name__)
 
 
-@forecast_bp.get('')
+@forecast_bp.route('', methods=['GET'])
 @jwt_required()
-def get_forecast():
+def get_product_forecast():
     product_id = request.args.get('product_id')
-    horizon_days = int(request.args.get('horizon_days', '7'))
+    horizon_days = int(request.args.get('horizon_days', 7))
+    
     if not product_id:
         return jsonify({"error": "product_id required"}), 400
+    
+    # Get product info
+    product = Product.query.get(int(product_id))
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+    
+    # Get forecasts for the product
+    today = dt.datetime.now().date()
+    forecasts = Forecast.query.filter(
+        Forecast.product_id == int(product_id),
+        Forecast.forecast_date >= today
+    ).order_by(Forecast.forecast_date.asc()).limit(horizon_days).all()
+    
+    # Check if training is in progress - ModelTraining doesn't have product_id
+    training_in_progress = ModelTraining.query.filter(
+        ModelTraining.trained_at >= today - dt.timedelta(hours=1)
+    ).first() is not None
+    
+    # Format forecast data
+    forecast_data = []
+    for forecast in forecasts:
+        forecast_data.append({
+            "date": forecast.forecast_date.strftime('%Y-%m-%d'),
+            "prediction": forecast.predicted_quantity,
+            "lower_bound": forecast.lower_bound,
+            "upper_bound": forecast.upper_bound
+        })
+    
+    return jsonify({
+        "product_id": int(product_id),
+        "forecast": forecast_data,
+        "training_in_progress": training_in_progress
+    })
 
-    sales = Sale.query.filter_by(product_id=int(product_id)).order_by(Sale.sale_date.asc()).all()
-    if len(sales) < 3:
-        return jsonify({"product_id": int(product_id), "horizon_days": horizon_days, "forecast": [0] * horizon_days, "lower": [0] * horizon_days, "upper": [0] * horizon_days})
 
-    dates = [s.sale_date.date() for s in sales]
-    qty = [s.quantity for s in sales]
-    df = pd.DataFrame({"ds": dates, "y": qty})
-    s = df.set_index('ds')['y'].astype(float).sort_index()
-    daily = s.resample('D').sum().fillna(0.0)
-
-    X = np.arange(len(daily)).reshape(-1, 1)
-    # simple baseline: last value persistence
-    last = float(daily.iloc[-1]) if len(daily) else 0.0
-    preds = np.full((horizon_days,), last)
-    forecast = np.maximum(0, np.round(preds)).astype(int).tolist()
-    lower = np.maximum(0, np.round(preds * 0.7)).astype(int).tolist()
-    upper = np.maximum(0, np.round(preds * 1.3)).astype(int).tolist()
-    return jsonify({"product_id": int(product_id), "horizon_days": horizon_days, "forecast": forecast, "lower": lower, "upper": upper})
+@forecast_bp.route('/comparison', methods=['GET', 'OPTIONS'])
+@jwt_required(optional=True)
+def get_forecast_comparison():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
+    product_id = request.args.get('product_id')
+    if not product_id:
+        return jsonify({"error": "product_id required"}), 400
+    
+    # Get product info
+    product = Product.query.get(int(product_id))
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+    
+    # Get actual sales data for the past 4 weeks
+    today = dt.datetime.now().date()
+    four_weeks_ago = today - dt.timedelta(days=28)
+    
+    sales = Sale.query.filter(
+        Sale.product_id == int(product_id),
+        Sale.sale_date >= four_weeks_ago
+    ).order_by(Sale.sale_date.asc()).all()
+    
+    # Group sales by date
+    sales_by_date = {}
+    for sale in sales:
+        date_str = sale.sale_date.strftime('%Y-%m-%d')
+        if date_str in sales_by_date:
+            sales_by_date[date_str] += sale.quantity
+        else:
+            sales_by_date[date_str] = sale.quantity
+    
+    # Get forecasts for the same period
+    forecasts = Forecast.query.filter(
+        Forecast.product_id == int(product_id),
+        Forecast.forecast_date >= four_weeks_ago,
+        Forecast.forecast_date <= today
+    ).order_by(Forecast.forecast_date.asc()).all()
+    
+    # Group forecasts by date
+    forecasts_by_date = {}
+    for forecast in forecasts:
+        date_str = forecast.forecast_date.strftime('%Y-%m-%d')
+        forecasts_by_date[date_str] = forecast.predicted_quantity
+    
+    # Combine data for comparison
+    comparison_data = []
+    current_date = four_weeks_ago
+    while current_date <= today:
+        date_str = current_date.strftime('%Y-%m-%d')
+        actual = sales_by_date.get(date_str, 0)
+        predicted = forecasts_by_date.get(date_str, None)
+        
+        comparison_data.append({
+            "date": date_str,
+            "actual": actual,
+            "predicted": predicted
+        })
+        
+        current_date += dt.timedelta(days=1)
+    
+    return jsonify({
+        "product_id": int(product_id),
+        "product_name": product.name,
+        "comparison_data": comparison_data
+    })
 
 

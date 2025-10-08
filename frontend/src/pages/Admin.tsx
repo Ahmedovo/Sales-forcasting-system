@@ -33,7 +33,7 @@ export default function Admin(): React.ReactElement {
     setStatus(null);
     try {
       await api.post("/admin/train-now", {});
-      setStatus("Training triggered.");
+      setStatus("Training triggered successfully.");
     } catch (e: any) {
       setStatus(e?.response?.data?.error || "Failed to trigger training");
     } finally {
@@ -53,7 +53,7 @@ export default function Admin(): React.ReactElement {
           <div className="card p-4 space-y-4">
             <div>
               <h2 className="text-sm font-semibold">CSV Import</h2>
-              <p className="text-xs text-gray-600">Products: name,sku,price,stock. Sales: product name, sku, product price, stock, quantity sale, date of sale (YYYY-MM-DD).</p>
+              <p className="text-xs text-gray-600">Required CSV columns: name, sku, product price, stock, quantity sale, date of sale (YYYY-MM-DD)</p>
               <div className="mt-2 flex items-center gap-3">
                 <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 <button className="btn btn-primary" disabled={loading} onClick={uploadCsv}>Upload CSV</button>

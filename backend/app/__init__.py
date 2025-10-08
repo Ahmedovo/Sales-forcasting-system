@@ -26,7 +26,7 @@ def create_app() -> Flask:
     # Enable CORS for direct frontend->backend calls
     try:
         from flask_cors import CORS
-        CORS(app, resources={r"/api/*": {"origins": "*"}})
+        CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
     except Exception:
         pass
 
@@ -52,12 +52,21 @@ def create_app() -> Flask:
                 conn.execute(text("ALTER TABLE products ALTER COLUMN sku SET NOT NULL"))
                 # Ensure unique index exists
                 conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_products_sku ON products (sku)"))
+                
+                # Add missing columns to forecasts table
+                conn.execute(text("ALTER TABLE forecasts ADD COLUMN IF NOT EXISTS lower_bound float"))
+                conn.execute(text("ALTER TABLE forecasts ADD COLUMN IF NOT EXISTS upper_bound float"))
+                conn.execute(text("ALTER TABLE forecasts ADD COLUMN IF NOT EXISTS forecast_date date"))
         except Exception:
             # Ignore on SQLite or non-Postgres engines
             pass
 
     # Start weekly scheduler once app is created (Flask 3 removed before_first_request)
     start_scheduler()
+    
+    # Train model on startup if there's data in the database
+    from .training import train_now
+    with app.app_context():
+        train_now()
 
     return app
-

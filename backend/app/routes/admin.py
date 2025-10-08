@@ -33,19 +33,23 @@ def upload_csv():
 # - product rows: name,sku,price,stock
 # - sales rows: product (name), sku, product price, stock, quantity sale, date of sale
     content = file.read().decode('utf-8')
+    print(f"CSV content received: {content[:100]}...")  # Print first 100 chars for debugging
     reader = csv.DictReader(io.StringIO(content))
     inserted_products = 0
     inserted_sales = 0
+    print(f"CSV headers: {reader.fieldnames}")  # Print CSV headers
 
     for row in reader:
         # Normalize keys (strip spaces, lowercase)
         normalized = { (k or '').strip().lower(): (v or '').strip() for k, v in row.items() }
+        print(f"Processing row: {normalized}")
 
-        # Product upsert row
-        if {'name','sku','price'}.issubset(normalized.keys()):
+        # Product upsert row - Check if this is a product row
+        if 'name' in normalized and 'sku' in normalized and 'product price' in normalized and 'stock' in normalized and not normalized.get('quantity sale'):
+            print("Found product row")
             name = normalized.get('name')
             sku = normalized.get('sku')
-            price = float(normalized.get('price') or 0)
+            price = float(normalized.get('product price') or 0)
             stock = int(normalized.get('stock') or 0)
             if not sku:
                 continue
@@ -60,13 +64,15 @@ def upload_csv():
                 inserted_products += 1
 
         # Sales row from the specified schema
-        elif {'product name','sku','product price','stock','quantity sale','date of sale'}.issubset(normalized.keys()):
-            name = normalized.get('product name')
+        elif 'name' in normalized and 'sku' in normalized and 'product price' in normalized and 'quantity sale' in normalized and 'date of sale' in normalized:
+            print("Found sales row")
+            name = normalized.get('name')
             sku = normalized.get('sku')
             price = float(normalized.get('product price') or 0)
             stock = int(normalized.get('stock') or 0)
             qty = int(normalized.get('quantity sale') or 0)
             date_str = normalized.get('date of sale')
+            print(f"Sales data: sku={sku}, qty={qty}, date={date_str}")
             try:
                 sale_date = dt.datetime.fromisoformat(date_str)
             except Exception:
@@ -104,8 +110,8 @@ def upload_csv():
     # Trigger retrain after import completes
     try:
         train_now()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Training error: {str(e)}")
     return jsonify({"inserted_products": inserted_products, "inserted_sales": inserted_sales})
 
 
@@ -115,7 +121,11 @@ def admin_train_now():
     user = User.query.get(get_jwt_identity())
     if not _is_admin(user):
         return jsonify({"error": "forbidden"}), 403
-    train_now()
-    return jsonify({"status": "training triggered"})
+    try:
+        train_now()
+        return jsonify({"status": "training triggered successfully"})
+    except Exception as e:
+        print(f"Training error in admin_train_now: {str(e)}")
+        return jsonify({"error": f"Training failed: {str(e)}"}), 500
 
 

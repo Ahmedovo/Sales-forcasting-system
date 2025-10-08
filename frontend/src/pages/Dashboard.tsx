@@ -23,7 +23,7 @@ export default function Dashboard(): React.ReactElement {
         setSalesSeries(salesRes.data.items ?? []);
         setAlerts(alertsRes.data.items ?? []);
         const prods = productsRes.data.items ?? [];
-        if (prods.length) setProductId(prods[0].id as unknown as string);
+        if (prods.length) setProductId(prods[0]!.id as unknown as string);
       } catch {}
     })();
   }, []);
