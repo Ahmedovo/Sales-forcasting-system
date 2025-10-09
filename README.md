@@ -158,6 +158,10 @@ Le workflow CD est déclenché à chaque push sur les branches main ou master. I
 Pour activer le CD, ajoutez les secrets suivants dans les paramètres de votre dépôt GitHub :
 - `DOCKER_HUB_USERNAME` : votre nom d'utilisateur Docker Hub
 - `DOCKER_HUB_TOKEN` : votre token d'accès Docker Hub
+- `SSH_HOST` : l'adresse IP ou le nom d'hôte de votre serveur cloud
+- `SSH_USERNAME` : le nom d'utilisateur pour la connexion SSH
+- `SSH_PRIVATE_KEY` : la clé privée SSH pour l'authentification
+- `SSH_PORT` : le port SSH (généralement 22)
 
 ## Testing
 ```bash

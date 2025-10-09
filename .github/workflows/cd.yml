@@ -35,5 +35,30 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/sales-forecast-frontend:latest
       
-      # Déploiement - Ajoutez ici les étapes spécifiques à votre environnement de déploiement
-      # Par exemple, déploiement sur un serveur via SSH, mise à jour sur Kubernetes, etc.
+      # Déploiement via SSH vers un serveur cloud
+      - name: Deploy to Cloud Server via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            # Créer un répertoire pour le déploiement si nécessaire
+            mkdir -p ~/sales-forecast-app
+            
+            # Aller dans le répertoire de déploiement
+            cd ~/sales-forecast-app
+            
+            # Télécharger le fichier docker-compose.yml depuis le dépôt
+            curl -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml
+            
+            # Mettre à jour les images Docker
+            docker-compose pull
+            
+            # Redémarrer les services
+            docker-compose down
+            docker-compose up -d
+            
+            # Vérifier que les services sont en cours d'exécution
+            docker-compose ps
