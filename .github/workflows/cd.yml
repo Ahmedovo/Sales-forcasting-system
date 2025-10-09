@@ -27,7 +27,7 @@ jobs:
           context: .
           file: ./backend/Dockerfile
           push: true
-          tags: "${{ secrets.DOCKERHUB_USERNAME }}/salesForecastBackend:latest"
+          tags: "${{ secrets.DOCKERHUB_USERNAME }}/salesforecastbackend:latest"
 
       - name: Build and push frontend
         uses: docker/build-push-action@v4
@@ -35,5 +35,5 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/salesForecastFrontend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/salesforecastfrontend:latest
           
