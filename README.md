@@ -74,7 +74,6 @@ The system uses a **Random Forest Regressor** model to predict future sales base
 1. Clone the repository:
    ```bash
    git clone https://github.com/Ahmedovo/Sales-forcasting-system.git
-   cd 4eme
    ```
 
 2. Start the application:
